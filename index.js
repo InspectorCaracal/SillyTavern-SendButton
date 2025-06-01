@@ -2,6 +2,31 @@ import { delay } from '../../../utils.js';
 import { waitForFrame } from './src/lib/wait.js';
 import { Settings } from './src/Settings.js';
 
+
+const NAME = new URL(import.meta.url).pathname.split('/').at(-2);
+const watchCss = async()=>{
+    if (new URL(import.meta.url).pathname.split('/').includes('reload')) return;
+    try {
+        const FilesPluginApi = (await import('../SillyTavern-FilesPluginApi/api.js')).FilesPluginApi;
+        // watch CSS for changes
+        const style = document.createElement('style');
+        document.body.append(style);
+        const path = [
+            '~',
+            'extensions',
+            NAME,
+            'style.css',
+        ].join('/');
+        const ev = await FilesPluginApi.watch(path);
+        ev.addEventListener('message', async(/**@type {boolean}*/exists)=>{
+            if (!exists) return;
+            style.innerHTML = await (await FilesPluginApi.get(path)).text();
+            document.querySelector(`#third-party_${NAME}-css`)?.remove();
+        });
+    } catch { /* empty */ }
+};
+watchCss();
+
 export const settings = new Settings();
 settings.render();
 
@@ -12,7 +37,7 @@ originalBtn.addEventListener('contextmenu', (evt)=>{
     evt.stopImmediatePropagation();
     showMenu();
 });
-const ta = /**@type {HTMLTextAreaElement}*/(document.querySelector('#send_textarea'));
+export const ta = /**@type {HTMLTextAreaElement}*/(document.querySelector('#send_textarea'));
 
 export const updateBtn = ()=>{
     const btn = settings.button ? settings.button.render() : originalBtn;
@@ -113,12 +138,15 @@ export const showMenu = async()=>{
                 const lbl = document.createElement('div'); {
                     lbl.classList.add('stsb--label');
                     lbl.textContent = sb.title;
-                    lbl.title = `Switch to [${sb.title}]\n---\n${sb.command}`;
+                    lbl.title = `Switch to [${sb.title}]\n---\nCtrl+click to edit\n---\n${sb.command}`;
                     lbl.addEventListener('click', async(evt)=>{
                         evt.preventDefault();
                         evt.stopPropagation();
                         evt.stopImmediatePropagation();
                         await hideMenu();
+                        if (evt.ctrlKey) {
+                            return sb.qr?.showEditor();
+                        }
                         settings.buttonId = sb.id;
                         updateBtn();
                         settings.save();
@@ -134,7 +162,10 @@ export const showMenu = async()=>{
                         evt.stopPropagation();
                         evt.stopImmediatePropagation();
                         await hideMenu();
-                        sb.execute();
+                        if (evt.ctrlKey) {
+                            return sb.qr?.showEditor();
+                        }
+                        sb.trigger(evt);
                     });
                     item.append(btn);
                 }
@@ -148,18 +179,26 @@ export const showMenu = async()=>{
     }
 };
 
-document.querySelector('#send_textarea').addEventListener('keydown', (/**@type {KeyboardEvent}*/evt)=>{
-    if (evt.key == 'Enter' && !evt.ctrlKey && !evt.altKey && !evt.shiftKey && settings.button && (settings.button.trapScript || ta.value[0] != '/')) {
-        evt.preventDefault();
-        evt.stopPropagation();
-        evt.stopImmediatePropagation();
-        if (ta.value.length > 0) {
-            const input = ta.value;
-            if (settings.button.clearInput) {
-                ta.value = '';
-                ta.dispatchEvent(new Event('input', { bubbles:true }));
+let Callback;
+let KeyCombo;
+try {
+    (async()=>{
+        Callback = (await import('../SillyTavern-Keyboard/src/Callback.js')).Callback;
+        KeyCombo = (await import('../SillyTavern-Keyboard/src/KeyCombo.js')).KeyCombo;
+        const cb = Callback.index['send'].callback;
+        Callback.index['send'].callback = async(evt)=>{
+            if (settings.button && (settings.button.trapScript || ta.value[0] != '/')) {
+                return settings.button.trigger(evt);
+            } else {
+                return cb(evt);
             }
-            settings.button.execute(input);
-        }
+        };
+    })();
+} catch { /* empty */ }
+
+document.querySelector('#send_textarea').addEventListener('keydown', (/**@type {KeyboardEvent}*/evt)=>{
+    if (KeyCombo && KeyCombo.list.find(it=>it.callbackId == 'send')) return;
+    if (evt.key == 'Enter' && !evt.ctrlKey && !evt.altKey && !evt.shiftKey && settings.button) {
+        settings.button.trigger(evt);
     }
 });

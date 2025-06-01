@@ -104,18 +104,27 @@
 
 
 #stsb--settings {
+    .stsb--btnContainer {
+    }
 	.stsb--btnList {
+        display: flex;
+        flex-direction: column;
+        gap: 2em;
 		list-style: none;
 		margin: 0;
 		padding: 0;
 	}
 
 	.stsb--item {
+        flex: 1 1 auto;
 		display: flex;
 		gap: 1em;
+        padding-bottom: 2em;
+        border-bottom: 2px solid var(--SmartThemeBorderColor);
 	}
 
 	.stsb--button {
+        flex: 0 0 auto;
 		order: unset !important;
 		font-size: 2em;
 		position: relative;
@@ -123,6 +132,7 @@
 	}
 
 	.stsb--content {
+        flex: 1 1 auto;
 		display: flex;
 		flex-direction: column;
 		gap: 0.5em;
@@ -131,5 +141,34 @@
 	.stsb--wrap {
 		display: flex;
 		gap: 0.5em;
+        align-items: stretch;
 	}
+    .stsb--setting {
+        display: flex;
+        flex-direction: column;
+    }
+    .stsb--label {
+        flex: 1 1 auto;
+    }
+    .menu_button {
+        min-height: 1.6em;
+    }
+    .stsb--qrWrap {
+        display: flex;
+        gap: 2em;
+
+        > label {
+            flex: 1 1 1px;
+            display: flex;
+            gap: 0.5em;
+            align-items: baseline;
+            white-space: nowrap;
+        }
+    }
+    .stsb--command .monospace {
+        display: none;
+        overflow: auto;
+        height: 4lh;
+        resize: vertical;
+    }
 }

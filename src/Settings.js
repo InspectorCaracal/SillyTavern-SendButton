@@ -1,6 +1,8 @@
 import { saveSettingsDebounced } from '../../../../../script.js';
 import { extension_settings } from '../../../../extensions.js';
 import { debounce, getSortableDelay, showFontAwesomePicker } from '../../../../utils.js';
+import { quickReplyApi } from '../../../quick-reply/index.js';
+import { QuickReplySet } from '../../../quick-reply/src/QuickReplySet.js';
 import { SendButton } from './SendButton.js';
 
 
@@ -195,6 +197,8 @@ export class Settings {
                         wrap.append(title);
                     }
                     // badge (icon/text)
+                    let badgeIconInp;
+                    let badgeInp;
                     const badge = document.createElement('div'); {
                         badge.classList.add('stsb--setting');
                         const lbl = document.createElement('div'); {
@@ -203,15 +207,47 @@ export class Settings {
                             badge.append(lbl);
                         }
                         const inp = document.createElement('input'); {
+                            badgeInp = inp;
                             inp.classList.add('text_pole');
                             inp.value = item.badge ?? '';
                             inp.addEventListener('input', ()=>{
-                                item.badge = inp.value;
+                                if (item.badge.startsWith('fa-')) badgeIconInp.classList.remove(item.badge);
+                                item.badge = inp.value.trim();
+                                if (item.badge.startsWith('fa-')) badgeIconInp.classList.add(item.badge);
                                 updatePreviewDebounced();
                             });
                             badge.append(inp);
                         }
                         wrap.append(badge);
+                    }
+                    // icon
+                    const badgeIcon = document.createElement('div'); {
+                        badgeIcon.classList.add('stsb--setting');
+                        const lbl = document.createElement('div'); {
+                            lbl.classList.add('stsb--label');
+                            lbl.textContent = 'Badge Icon';
+                            badgeIcon.append(lbl);
+                        }
+                        const inp = document.createElement('div'); {
+                            badgeIconInp = inp;
+                            inp.classList.add('menu_button');
+                            inp.classList.add('fa-solid', 'fa-fw');
+                            if (item.badge.startsWith('fa-')) {
+                                inp.classList.add(item.badge);
+                            }
+                            inp.addEventListener('click', async()=>{
+                                const newIcon = await showFontAwesomePicker();
+                                if (newIcon) {
+                                    if (item.badge.startsWith('fa-')) inp.classList.remove(item.badge);
+                                    inp.classList.add(newIcon);
+                                    item.badge = newIcon;
+                                    badgeInp.value = newIcon;
+                                    updatePreviewDebounced();
+                                }
+                            });
+                            badgeIcon.append(inp);
+                        }
+                        wrap.append(badgeIcon);
                     }
                     // badge color
                     const badgeColor = document.createElement('div'); {
@@ -308,19 +344,96 @@ export class Settings {
                 // cmd
                 const cmd = document.createElement('div'); {
                     cmd.classList.add('stsb--setting');
+                    cmd.classList.add('stsb--command');
                     const lbl = document.createElement('div'); {
                         lbl.classList.add('stsb--label');
                         lbl.textContent = 'Command';
                         cmd.append(lbl);
                     }
-                    const inp = document.createElement('textarea'); {
+                    const qrWrap = document.createElement('div'); {
+                        qrWrap.classList.add('stsb--qrWrap');
+                        let qrsSel;
+                        const updateQrsSel = ()=>{
+                            qrsSel.innerHTML = '';
+                            const items = [
+                                { name: '' },
+                                ...QuickReplySet.list.toSorted((a,b)=>a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
+                            ];
+                            for (const o of items) {
+                                const opt = document.createElement('option'); {
+                                    opt.value = o.name;
+                                    opt.textContent = o.name;
+                                    opt.selected = o == item.qrs;
+                                    qrsSel.append(opt);
+                                }
+                            }
+                        };
+                        const qrs = document.createElement('label'); {
+                            qrs.append('QR Set: ');
+                            const sel = document.createElement('select'); {
+                                qrsSel = sel;
+                                sel.addEventListener('change', ()=>{
+                                    item.qrsName = sel.value;
+                                });
+                                sel.addEventListener('pointerdown', ()=>updateQrsSel());
+                                updateQrsSel();
+                                qrs.append(sel);
+                            }
+                            qrWrap.append(qrs);
+                        }
+                        let qrSel;
+                        const updateQrSel = ()=>{
+                            qrSel.innerHTML = '';
+                            const items = [
+                                { id: '', label: '', title: '' },
+                                ...(item.qrs?.qrList.toSorted((a,b)=>(a.label || a.title).toLowerCase().localeCompare((b.label || a.title).toLowerCase())) ?? []),
+                            ];
+                            for (const o of items) {
+                                const opt = document.createElement('option'); {
+                                    opt.value = o.id.toString();
+                                    opt.textContent = o.label || o.title;
+                                    opt.selected = o == item.qr;
+                                    qrSel.append(opt);
+                                }
+                            }
+                        };
+                        const qr = document.createElement('label'); {
+                            qr.append('QR: ');
+                            const sel = document.createElement('select'); {
+                                qrSel = sel;
+                                sel.addEventListener('change', ()=>{
+                                    item.qrId = parseInt(sel.value);
+                                });
+                                sel.addEventListener('pointerdown', ()=>updateQrSel());
+                                updateQrSel();
+                                qr.append(sel);
+                            }
+                            qrWrap.append(qr);
+                        }
+                        const edit = document.createElement('div'); {
+                            edit.classList.add('menu_button');
+                            edit.classList.add('fa-solid', 'fa-fw', 'fa-pen-to-square');
+                            edit.title = 'Edit / create Quick Reply';
+                            edit.addEventListener('click', ()=>{
+                                if (item.qrs && !item.qr) {
+                                    item.qrId = quickReplyApi.createQuickReply(item.qrs.name, 'New Send Button', { message:item.command }).id;
+                                    updateQrSel();
+                                    this.save();
+                                }
+                                item.qr?.showEditor();
+                            });
+                            qrWrap.append(edit);
+                        }
+                        cmd.append(qrWrap);
+                    }
+                    const inp = document.createElement('pre'); {
                         inp.classList.add('text_pole');
                         inp.classList.add('monospace');
-                        inp.value = item.command ?? '';
-                        inp.placeholder = '/send {{var::input}} | /trigger';
-                        inp.addEventListener('input', ()=>{
-                            item.command = inp.value;
-                            this.save();
+                        inp.textContent = item.qr?.message ?? item.command ?? '/send {{var::input}} | /trigger';
+                        inp.addEventListener('click', ()=>{
+                            if (inp.textContent != (item.qr?.message ?? item.command ?? '')) {
+                                inp.textContent = item.qr?.message ?? item.command ?? '';
+                            }
                         });
                         cmd.append(inp);
                     }

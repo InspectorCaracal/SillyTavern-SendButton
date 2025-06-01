@@ -1,7 +1,9 @@
+import { sendTextareaMessage } from '../../../../../script.js';
 import { executeSlashCommandsOnChatInput } from '../../../../slash-commands.js';
 import { SlashCommandScope } from '../../../../slash-commands/SlashCommandScope.js';
 import { uuidv4 } from '../../../../utils.js';
-import { showMenu } from '../index.js';
+import { QuickReplySet } from '../../../quick-reply/src/QuickReplySet.js';
+import { showMenu, ta } from '../index.js';
 
 export class SendButton {
     /**
@@ -12,15 +14,24 @@ export class SendButton {
         return Object.assign(new this(), props);
     }
     /**@type {string} */ id = uuidv4();
-    /**@type {string} */ command;
+    /**@type {string} */ qrsName;
+    /**@type {number} */ qrId;
+    /**@type {string} */ command; // keep for legacy
     /**@type {string} */ icon = 'fa-paper-plane';
     /**@type {string} */ color = 'white';
-    /**@type {string} */ badge;
+    /**@type {string} */ badge = '';
     /**@type {string} */ badgeColor = 'white';
     /**@type {string} */ badgeBackground = 'orange';
-    /**@type {string} */ title;
+    /**@type {string} */ title = '';
     /**@type {boolean} */ trapScript = false;
     /**@type {boolean} */ clearInput = true;
+
+    get qrs() {
+        return QuickReplySet.get(this.qrsName);
+    }
+    get qr() {
+        return this.qrs?.qrList.find(it=>it.id == this.qrId);
+    }
 
     dom = {
         /**@type {HTMLElement} */
@@ -31,7 +42,9 @@ export class SendButton {
     toJSON() {
         return {
             id: this.id,
-            command: this.command,
+            qrsName: this.qrsName,
+            qrId: this.qrId,
+            command: this.command, // keep for legacy
             icon: this.icon,
             color: this.color,
             badge: this.badge,
@@ -39,6 +52,7 @@ export class SendButton {
             badgeBackground: this.badgeBackground,
             title: this.title,
             trapScript: this.trapScript,
+            clearInput: this.clearInput,
         };
     }
 
@@ -49,7 +63,7 @@ export class SendButton {
             btn.classList.add('stsb--button');
             btn.classList.add('fa-solid', 'fa-fw');
             btn.classList.add(this.icon);
-            btn.title = this.title ?? 'Send a message';
+            btn.title = (this.title ?? 'Send a message') + '\n---\nCtrl+click to edit';
             btn.style.color = this.color ?? '';
             if (this.badge) {
                 const badge = document.createElement('div'); {
@@ -71,10 +85,10 @@ export class SendButton {
     render() {
         const btn = this.buildDom();
         btn.addEventListener('click', (evt)=>{
-            evt.preventDefault();
-            evt.stopPropagation();
-            evt.stopImmediatePropagation();
-            this.execute();
+            if (evt.ctrlKey) {
+                return this.qr?.showEditor();
+            }
+            this.trigger(evt);
         });
         btn.addEventListener('contextmenu', (evt)=>{
             evt.preventDefault();
@@ -91,9 +105,33 @@ export class SendButton {
         this.dom.root.replaceWith(...nodes);
     }
 
-    execute(input) {
+    trigger(evt) {
+        if (this.trapScript || ta.value[0] != '/') {
+            evt.preventDefault();
+            evt.stopPropagation();
+            evt.stopImmediatePropagation();
+            if (ta.value.length > 0) {
+                const input = ta.value;
+                if (this.clearInput) {
+                    ta.value = '';
+                    ta.dispatchEvent(new Event('input', { bubbles:true }));
+                }
+                this.execute(input, evt);
+            }
+        } else {
+            sendTextareaMessage();
+        }
+    }
+
+    /**
+     * Execute the button handler
+     * @param {string} input
+     * @param {Event} evt
+     */
+    execute(input, evt) {
         const scope = new SlashCommandScope();
         scope.letVariable('input', input);
-        executeSlashCommandsOnChatInput(this.command, { scope });
+        scope.letVariable('event', JSON.stringify(evt));
+        executeSlashCommandsOnChatInput(this.qr?.message ?? this.command, { scope });
     }
 }
