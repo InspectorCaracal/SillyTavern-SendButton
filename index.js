@@ -198,7 +198,7 @@ try {
 
 document.querySelector('#send_textarea').addEventListener('keydown', (/**@type {KeyboardEvent}*/evt)=>{
     if (KeyCombo && KeyCombo.list.find(it=>it.callbackId == 'send')) return;
-    if (evt.key == 'Enter' && !evt.ctrlKey && !evt.altKey && !evt.shiftKey && settings.button && this.value[0] != ('/')) {
+    if (evt.key == 'Enter' && !evt.ctrlKey && !evt.altKey && !evt.shiftKey && settings.button && evt.target.value[0] != ('/')) {
         settings.button.trigger(evt);
     }
 });
